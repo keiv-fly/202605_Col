@@ -961,6 +961,36 @@ The first playable prototype should be small.
 0.5×, 1×, 2×
 ```
 
+### MVP Acceptance Criteria
+
+The MVP is complete when all of the following are true:
+
+* `npm install` completes successfully from a clean checkout
+* `npm run dev` starts a local development server without runtime errors
+* `npm run build` completes successfully
+* `npm test` completes successfully
+* the browser opens to a playable map screen, not a landing page
+* a deterministic 64×40 square-tile map is generated or loaded on startup
+* terrain renders through PixiJS with visually distinct land and water tiles
+* the camera can pan across the map
+* the camera can switch between 0.5×, 1×, and 2× zoom levels
+* hovering a tile shows enough tile information to identify its coordinates and terrain type
+* clicking a tile selects it and visibly marks the selected tile
+* at least one player-owned land unit exists on the map at startup
+* clicking a unit selects it and shows its basic unit information
+* a selected land unit can move to a valid adjacent land tile
+* invalid movement is rejected and does not mutate the authoritative game state
+* a selected valid unit can found a colony on an allowed land tile
+* founded colonies appear on the map and are stored in the game state
+* ending the turn advances the turn counter by one
+* ending the turn applies basic colony food and lumber production
+* the game state can be saved to JSON
+* a saved JSON game can be loaded back into the game
+* loading a saved game restores turn number, map, units, colonies, and stored goods
+* PixiJS display objects are not stored in the save file
+* game rules can be tested without creating a PixiJS application
+* UI/rendering code and game logic remain separated into their own source folders
+
 ---
 
 ## 27. Milestone Plan

@@ -4,13 +4,13 @@
 
 Create a turn-based strategy/economic simulation game inspired by classic *Colonization*-style gameplay.
 
-The game should start as a **PixiJS + TypeScript** project and be designed so that calculation-heavy systems can later be moved to **Rust compiled to WebAssembly**.
+The game should start as a **PixiJS + TypeScript** project with a clear separation between the UI/rendering layer and the pure game logic layer.
 
 The guiding principle is:
 
 > PixiJS is the view and interaction layer. The game engine is separate from PixiJS.
 
-PixiJS should handle rendering, input, camera, animation, and UI. The game rules should live in a separate pure logic layer that can later be rewritten or replaced by Rust/WASM.
+PixiJS should handle rendering, input, camera, animation, and UI. The game rules should live in a separate pure TypeScript logic layer.
 
 ---
 
@@ -23,12 +23,6 @@ PixiJS should handle rendering, input, camera, animation, and UI. The game rules
 * Rendered with PixiJS
 * Bundled with Vite or similar modern frontend tooling
 
-### Later Target
-
-* Desktop app using Tauri or Electron
-* Prefer Tauri if Rust becomes an important part of the project
-* Keep the browser version functional during development
-
 ---
 
 ## 3. Recommended Technology Stack
@@ -40,28 +34,10 @@ PixiJS should handle rendering, input, camera, animation, and UI. The game rules
 * **Vite**
 * HTML/CSS for surrounding UI if needed
 
-### Game Logic, Phase 1
+### Game Logic
 
 * Pure TypeScript game engine layer
 * No direct dependency on PixiJS inside the core rules
-
-### Game Logic, Phase 2
-
-* Rust core compiled to WebAssembly
-* TypeScript wrapper around WASM module
-* Rust used only after profiling shows bottlenecks
-
-### Desktop Packaging, Later
-
-Preferred:
-
-* **Tauri**
-
-Alternative:
-
-* Electron
-
-Tauri is attractive because the project may already use Rust for simulation, AI, pathfinding, or save/load logic.
 
 ---
 
@@ -89,13 +65,6 @@ Game Engine Layer
   - AI
   - pathfinding
   - turn resolution
-
-Later Rust/WASM Core
-  - expensive AI planning
-  - pathfinding
-  - economic simulation
-  - trade route optimization
-  - large-scale turn simulation
 ```
 
 The PixiJS application layer should call the game engine through a small API. It should not directly own or mutate the authoritative game state.
@@ -132,7 +101,7 @@ class MapView {
 }
 ```
 
-This keeps the future Rust migration realistic.
+This keeps the UI and game rules cleanly separated.
 
 ---
 
@@ -429,7 +398,7 @@ const index = y * width + x;
 const tile = tiles[index];
 ```
 
-This is easier to migrate to Rust and usually faster than nested arrays.
+This is usually faster and simpler to index than nested arrays.
 
 ### Tile Shape
 
@@ -636,7 +605,7 @@ Each turn:
 10. update market effects if goods are sold
 ```
 
-Economy logic is a good candidate for later Rust migration if the map, colony count, or AI simulations become large.
+Economy logic should stay in the game engine layer so it can be tested independently from rendering.
 
 ---
 
@@ -660,8 +629,6 @@ Movement cost depends on:
 
 Start with TypeScript A*.
 
-Later, move to Rust if pathfinding becomes expensive.
-
 Pathfinding API should be isolated from PixiJS:
 
 ```ts
@@ -672,13 +639,7 @@ findPath(
 ): PathResult;
 ```
 
-Later Rust-compatible API:
-
-```ts
-wasm.find_path(unitId, targetX, targetY);
-```
-
-Avoid calling Rust once per tile. Ask for a complete path or complete movement range in one call.
+Return complete paths or movement ranges from the pathfinding layer rather than leaking step-by-step rendering details into the game engine.
 
 ---
 
@@ -704,109 +665,11 @@ Later AI can become more sophisticated:
 * military campaigns
 * diplomacy
 
-AI is one of the best candidates for Rust/WASM later because it may require many simulations or searches.
+AI should stay in the game engine layer and communicate with the UI through commands and events.
 
 ---
 
-## 20. Rust/WASM Migration Strategy
-
-Do not start with Rust immediately unless there is a known performance need.
-
-Start in TypeScript for faster iteration.
-
-Move systems to Rust only after profiling.
-
-### Good Rust Candidates
-
-| System             | Rust Suitability | Reason                            |
-| ------------------ | ---------------: | --------------------------------- |
-| AI planning        |             High | potentially expensive             |
-| pathfinding        |             High | repeated graph search             |
-| economy simulation |      Medium/High | many colonies/tiles               |
-| trade optimization |             High | combinatorial logic               |
-| combat simulation  |           Medium | usually cheap but easy to isolate |
-| save compression   |           Medium | useful but not urgent             |
-| rendering          |              Low | keep in PixiJS                    |
-| UI                 |              Low | keep in TypeScript                |
-
-### JS/WASM Boundary Rule
-
-Avoid many small calls like:
-
-```ts
-wasm.get_tile_food(x, y);
-wasm.get_tile_ore(x, y);
-wasm.get_tile_owner(x, y);
-```
-
-Prefer large calls:
-
-```ts
-wasm.simulate_turn();
-wasm.calculate_ai_orders(playerId);
-wasm.find_path(unitId, targetX, targetY);
-wasm.export_visible_map_buffer();
-```
-
----
-
-## 21. Rust Ownership Models
-
-There are two possible Rust integration models.
-
-### Model A: TypeScript Owns State, Rust Computes Helpers
-
-TypeScript keeps `GameState`.
-
-Rust receives serialized chunks of data and returns results.
-
-Pros:
-
-* easier to add incrementally
-* easier debugging in TypeScript
-* simpler save/load at first
-
-Cons:
-
-* serialization overhead
-* duplicated data structures
-* less performance benefit
-
-Good for:
-
-* pathfinding
-* local calculations
-* isolated AI helpers
-
-### Model B: Rust Owns Core State
-
-Rust owns the full game state.
-
-TypeScript/PixiJS asks Rust for snapshots or render buffers.
-
-Pros:
-
-* best performance
-* clean simulation ownership
-* good for large maps
-
-Cons:
-
-* harder debugging
-* more complicated UI integration
-* more up-front design required
-
-Good for later stages if the game becomes simulation-heavy.
-
-### Recommended Path
-
-Start with Model A.
-
-Move toward Model B only if necessary.
-
----
-
-## 22. PixiJS View Structure
+## 20. PixiJS View Structure
 
 Recommended views/modules:
 
@@ -859,7 +722,7 @@ The UI can be built either directly in PixiJS or with HTML overlays. For a manag
 
 ---
 
-## 23. Suggested Source Layout
+## 21. Suggested Source Layout
 
 ```text
 src/
@@ -927,29 +790,11 @@ src/
     pathfinding/
       astar.ts
       movementCost.ts
-
-  wasm/
-    colonizationCore.ts
-    types.ts
-```
-
-Later:
-
-```text
-rust-core/
-  Cargo.toml
-  src/
-    lib.rs
-    state.rs
-    map.rs
-    pathfinding.rs
-    economy.rs
-    ai.rs
 ```
 
 ---
 
-## 24. Game Engine API
+## 22. Game Engine API
 
 The PixiJS layer should interact with the engine through commands and queries.
 
@@ -994,7 +839,7 @@ This design makes it easier to animate results in PixiJS without mixing rules in
 
 ---
 
-## 25. Save/Load Specification
+## 23. Save/Load Specification
 
 Start with JSON saves.
 
@@ -1018,13 +863,12 @@ Later improvements:
 
 * compression
 * binary saves
-* Rust-based serialization
 * autosave
 * save thumbnails
 
 ---
 
-## 26. Rendering Performance Guidelines
+## 24. Rendering Performance Guidelines
 
 ### Do
 
@@ -1039,13 +883,12 @@ Later improvements:
 
 * thousands of independent tile sprites
 * recalculating the full economy every frame
-* calling Rust/WASM for tiny per-tile queries
 * mixing PixiJS objects into saved game state
 * making movement or economy depend on frame rate
 
 ---
 
-## 27. UI Specification
+## 25. UI Specification
 
 Main map UI should include:
 
@@ -1083,7 +926,7 @@ Colony UI should include:
 
 ---
 
-## 28. MVP Scope
+## 26. MVP Scope
 
 The first playable prototype should be small.
 
@@ -1120,9 +963,9 @@ The first playable prototype should be small.
 
 ---
 
-## 29. Phase Plan
+## 27. Milestone Plan
 
-### Phase 1: Visual Prototype
+### Visual Prototype
 
 * PixiJS project setup
 * tile atlas
@@ -1131,7 +974,7 @@ The first playable prototype should be small.
 * tile hover and selection
 * simple unit sprite
 
-### Phase 2: Game State Prototype
+### Game State Prototype
 
 * pure TypeScript `GameState`
 * map model
@@ -1139,7 +982,7 @@ The first playable prototype should be small.
 * movement rules
 * command/event system
 
-### Phase 3: First Colony Loop
+### First Colony Loop
 
 * found colony
 * assign worker
@@ -1147,14 +990,14 @@ The first playable prototype should be small.
 * construction queue
 * end turn processing
 
-### Phase 4: Exploration and Fog
+### Exploration and Fog
 
 * discovered tiles
 * visible tiles
 * fog-of-war rendering
 * scout/explorer unit
 
-### Phase 5: Economy Expansion
+### Economy Expansion
 
 * more goods
 * storage
@@ -1162,32 +1005,22 @@ The first playable prototype should be small.
 * Europe market screen
 * ships and cargo
 
-### Phase 6: AI Prototype
+### AI Prototype
 
 * simple AI exploration
 * colony founding
 * basic production choices
 
-### Phase 7: Profiling
+### Performance Review
 
 * measure turn resolution time
 * measure pathfinding time
 * measure rendering time
 * identify bottlenecks
 
-### Phase 8: Rust/WASM Integration
-
-Move only the slow systems first:
-
-* pathfinding, or
-* AI planning, or
-* economy simulation
-
-Do not migrate everything to Rust just because Rust is available.
-
 ---
 
-## 30. Non-Goals for Early Version
+## 28. Non-Goals for Early Version
 
 Avoid these at the beginning:
 
@@ -1197,7 +1030,6 @@ Avoid these at the beginning:
 * advanced AI
 * perfect historical simulation
 * custom binary save format
-* full Rust core from day one
 * highly animated tactical combat
 * isometric rendering
 
@@ -1205,7 +1037,7 @@ These can be added later after the core loop works.
 
 ---
 
-## 31. Key Technical Decisions
+## 29. Key Technical Decisions
 
 ### Use PixiJS?
 
@@ -1213,23 +1045,15 @@ Yes.
 
 PixiJS is enough for drawing a Colonization-like 2D tile map.
 
-### Use Rust immediately?
-
-No.
-
-Start with TypeScript logic, but keep it isolated so Rust can replace parts later.
-
 ### Use 16×16 tiles like the old game?
 
 No, unless making a strict retro clone.
 
 Use 64×64 source art for a modern readable game.
 
-### Store economic game data in TypeScript or Rust?
+### Store economic game data in TypeScript?
 
-Initially TypeScript.
-
-Later, if the simulation core moves to Rust, Rust may own the authoritative simulation state.
+Yes. The authoritative simulation state should live in the TypeScript game engine layer.
 
 ### Should PixiJS own the game state?
 
@@ -1239,7 +1063,7 @@ PixiJS should render and interact with the state, not be the state.
 
 ---
 
-## 32. Implementation Rule of Thumb
+## 30. Implementation Rule of Thumb
 
 Every time a new system is added, ask:
 
@@ -1261,11 +1085,11 @@ Examples:
 | button click handling         | PixiJS/UI                         |
 | colony production queue logic | game engine                       |
 | colony panel layout           | PixiJS/UI or HTML UI              |
-| AI planning                   | game engine, later Rust candidate |
+| AI planning                   | game engine                       |
 
 ---
 
-## 33. Final Recommended Baseline
+## 31. Final Recommended Baseline
 
 Start with this exact baseline:
 
@@ -1281,8 +1105,6 @@ Target map: 128×80 or larger
 Game state: pure TypeScript object model
 Rendering: batched PixiJS terrain layers + sprites
 Save/load: JSON first
-Rust: later, via WebAssembly, after profiling
-Desktop: Tauri later if needed
 ```
 
-The project should be built as a clean TypeScript strategy-game engine with PixiJS as the front-end renderer. That gives the fastest development path now and preserves the option to move performance-sensitive logic to Rust later.
+The project should be built as a clean TypeScript strategy-game engine with PixiJS as the front-end renderer. The UI/rendering code and game logic should remain in separate folders and communicate through commands, queries, and events.
